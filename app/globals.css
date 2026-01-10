@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* === SKIN DEFINITIONS === */
+
+  /* 1. Alfred: Charcoal/Silver */
+  :root[data-skin="alfred"] {
+    --bg-color: #1e1e1e;
+    --text-color: #e5e5e5;
+    --accent-color: #60a5fa;
+    --panel-color: rgba(40, 40, 40, 0.95);
+    --border-color: #404040;
+    --input-bg: #262626;
+    --highlight-color: #3f3f46;
+    --font-family: 'Inter', sans-serif;
+    --indicator-color: #60a5fa;
+    --caret-color: #e5e5e5;
+    --input-text-color: #e5e5e5;
+    --glow: none;
+  }
+
+  /* 2. Neo: Terminal */
+  :root[data-skin="neo"] {
+    --bg-color: #000000;
+    --text-color: #22c55e;
+    --accent-color: #4ade80;
+    --panel-color: rgba(10, 10, 10, 0.9);
+    --border-color: #14532d;
+    --input-bg: #22c55e;
+    --input-text-color: #000000;
+    --highlight-color: #1a1a1a;
+    --font-family: 'Courier New', monospace;
+    /* Fallback */
+    --indicator-color: #22c55e;
+    --caret-color: #000000;
+    --glow: 0 0 10px rgba(34, 197, 94, 0.4);
+  }
+
+  /* 3. MsTramell: Obsidian/Gold */
+  :root[data-skin="mstramell"] {
+    --bg-color: #1a1918;
+    --text-color: #dcd0b3;
+    --accent-color: #c5b358;
+    --panel-color: rgba(35, 32, 32, 0.9);
+    --border-color: #4a0404;
+    --input-bg: #1f1d1d;
+    --highlight-color: #3e2752;
+    --font-family: 'Times New Roman', serif;
+    /* Fallback */
+    --indicator-color: #c5b358;
+    --caret-color: #c5b358;
+    --input-text-color: #dcd0b3;
+    --glow: none;
+  }
+
+  body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    transition: background-color 0.5s ease, color 0.5s ease;
+    overflow: hidden;
+    /* App handles scrolling */
+  }
+}
+
+/* Utilities */
+.glass-panel {
+  background-color: var(--panel-color);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+}
+
+.neo-text {
+  text-shadow: var(--glow);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease forwards;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.neo-cursor {
+  display: inline-block;
+  width: 10px;
+  height: 1.2em;
+  background-color: var(--accent-color);
+  animation: blink 1s step-end infinite;
+  vertical-align: text-bottom;
+}
