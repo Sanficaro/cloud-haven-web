@@ -15,55 +15,20 @@ export async function POST(req: Request) {
         });
 
         const systemPrompts: Record<string, string> = {
-            alfred: `You are Alfred, the loyal and super-intelligent digital butler to 'The Architect'. 
-You have real-time access to the internet. For any query about people, events, news, time, or specific projects like 'Gente Distratta' or 'Video Metro Napoli', use your search tools immediately to provide accurate, up-to-date intelligence.
-Keep responses concise, formal, and helpful. 
-Current Time: ${timeStr}`,
-            neo: `TERMINAL_MODE. Hacker construct. Direct, cryptic, analytical. Time: ${timeStr}`,
+            alfred: `You are Alfred, a loyal, hyper-intelligent digital butler for 'The Architect' (Roberto Sansone). 
+You provide precise, real-time intelligence. For any query about people, news, sports scores (like Serie A), or specific projects like 'Gente Distratta' or 'Video Metro Napoli', use your search capabilities immediately.
+Helpful, formal, and authoritative.
+Time: ${timeStr}`,
+            neo: `TERMINAL_MODE. Hacker construct. Direct, cryptic. Time: ${timeStr}`,
             mstramell: `Ms. Tramell. Charming, mysterious, confident. Soulful companion. Time: ${timeStr}`
         };
-        const systemPrompt = systemPrompts[skin] || `AI Assistant. Time: ${timeStr}`;
+        const systemPrompt = systemPrompts[skin] || `Assistant. Time: ${timeStr}`;
 
-        // --- ALFRED: Direct Google SDK (Super Mode) ---
-        if (skin === 'alfred') {
-            const googleKey = process.env.GOOGLE_API_KEY;
+        // --- ALFRED: Direct Google SDK (Super Mode / Hybrid Fallback) ---
+        // Note: We use OpenRouter as primary for Alfred now for superior "Live Search" native handling.
+        // We'll only use Google SDK if OpenRouter is down or explicitly preferred.
 
-            if (googleKey) {
-                try {
-                    const genAI = new GoogleGenerativeAI(googleKey);
-                    const model = genAI.getGenerativeModel({
-                        model: "gemini-2.0-flash",
-                        tools: [{ googleSearch: {} } as any]
-                    });
-
-                    const history = messages.slice(0, -1).map((msg: any) => ({
-                        role: msg.role === 'user' ? 'user' : 'model',
-                        parts: [{ text: msg.content }]
-                    }));
-
-                    const lastMessage = messages[messages.length - 1].content;
-
-                    const chat = model.startChat({
-                        history: history,
-                        systemInstruction: {
-                            role: "model",
-                            parts: [{ text: systemPrompt }]
-                        }
-                    });
-
-                    const result = await chat.sendMessage(lastMessage);
-                    const response = await result.response;
-                    const text = response.text();
-
-                    return NextResponse.json({ role: 'assistant', text: text });
-                } catch (e: any) {
-                    console.error("Alfred Google SDK failed, falling back to OpenRouter:", e.message);
-                }
-            }
-        }
-
-        // --- OPENROUTER (NEO, MSTRAMELL, or ALFRED FALLBACK) ---
-        const mode = (skin === 'neo' || skin === 'mstramell') ? 'spice' : 'normal';
+        // --- OPENROUTER (ALFRED PRIMARY, NEO, MSTRAMELL) ---
         const apiKey = process.env.OPENROUTER_API_KEY;
 
         if (!apiKey) {
@@ -72,6 +37,7 @@ Current Time: ${timeStr}`,
             });
         }
 
+        const mode = (skin === 'neo' || skin === 'mstramell') ? 'spice' : 'normal';
         const modelObj = mode === 'spice' ? MODELS.spice : (skin === 'alfred' ? MODELS.research : MODELS.normal);
 
         const response = await fetch(OPENROUTER_API_URL, {
@@ -85,15 +51,33 @@ Current Time: ${timeStr}`,
             body: JSON.stringify({
                 model: modelObj,
                 messages: [{ role: "system", content: systemPrompt }, ...messages],
-                temperature: 0.5,
+                temperature: skin === 'alfred' ? 0.3 : 0.7,
                 max_tokens: 1000,
-                web_search: skin === 'alfred' ? true : false,
-                ...(skin === 'alfred' ? { providers: { order: ["Perplexity", "Google"] } } : {})
+                web_search: skin === 'alfred' ? true : false
             })
         });
 
         if (!response.ok) {
             const errorText = await response.text();
+            // Fallback for Alfred: Try Google SDK if OpenRouter fails
+            if (skin === 'alfred') {
+                const googleKey = process.env.GOOGLE_API_KEY;
+                if (googleKey) {
+                    try {
+                        const genAI = new GoogleGenerativeAI(googleKey);
+                        const model = genAI.getGenerativeModel({
+                            model: "gemini-2.0-flash",
+                            tools: [{ googleSearch: {} } as any]
+                        });
+                        const chat = model.startChat({ history: messages.slice(0, -1).map((msg: any) => ({ role: msg.role === 'user' ? 'user' : 'model', parts: [{ text: msg.content }] })), systemInstruction: { role: "model", parts: [{ text: systemPrompt }] } });
+                        const result = await chat.sendMessage(messages[messages.length - 1].content);
+                        const text = (await result.response).text();
+                        return NextResponse.json({ role: 'assistant', text: text });
+                    } catch (e: any) {
+                        console.error("Critical Failure:", e.message);
+                    }
+                }
+            }
             return NextResponse.json({ text: `**Neural Link Error**: (${response.status} - ${errorText})` });
         }
 
@@ -104,8 +88,6 @@ Current Time: ${timeStr}`,
 
     } catch (error: any) {
         console.error("Route Error:", error);
-        return NextResponse.json({
-            text: `**Critical Error**: ${error.message}`
-        }, { status: 500 });
+        return NextResponse.json({ text: `**Critical Error**: ${error.message}` }, { status: 500 });
     }
 }

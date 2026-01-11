@@ -4,7 +4,8 @@ export const MODELS = {
     // Top-tier paid models to utilize credits and bypass free-tier 429s
     normal: "meta-llama/llama-3.3-70b-instruct",
     spice: "meta-llama/llama-3.3-70b-instruct",
-    research: "perplexity/sonar"
+    research: "openai/gpt-4o-mini-search-preview",
+    legacy_research: "perplexity/sonar"
 };
 
 export type ChatMessage = {
