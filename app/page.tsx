@@ -1,18 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  Menu,
-  FolderOpen,
-  Settings,
-  Shirt,
-  Wine,
-  MessageSquarePlus,
-  Plus,
-  Image as ImageIcon,
-  Upload,
-  Send
-} from 'lucide-react';
+import { useRef, useEffect, useState } from 'react';
+import { Send, Menu, Plus, Upload, Image as ImageIcon, Sparkles, Terminal, User, MessageSquarePlus, FolderOpen, Settings, Shirt, Wine } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import './globals.css';
 
 type Skin = 'alfred' | 'neo' | 'mstramell';
 
@@ -29,7 +20,10 @@ export default function HavenPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showMobileInputs, setShowMobileInputs] = useState(false);
-  const touchStartX = useRef<number | null>(null);
+  const scrollRefAlfred = useRef<HTMLDivElement>(null);
+  const scrollRefNeo = useRef<HTMLDivElement>(null);
+  const scrollRefMsTramell = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -48,12 +42,24 @@ export default function HavenPage() {
     document.documentElement.setAttribute('data-skin', currentSkin);
   }, [currentSkin]);
 
-  // Auto-scroll chat
+  // Auto-scroll logic for each skin
   useEffect(() => {
-    if (viewportRef.current) {
-      viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
+    const activeRef = currentSkin === 'alfred' ? scrollRefAlfred : currentSkin === 'neo' ? scrollRefNeo : scrollRefMsTramell;
+    if (activeRef.current) {
+      activeRef.current.scrollTo({
+        top: activeRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
     }
   }, [chatHistory, currentSkin]);
+
+  // Handle textarea auto-resize
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+    }
+  }, [inputValue]);
 
   const changeSkin = (skin: Skin) => {
     setCurrentSkin(skin);
@@ -140,6 +146,37 @@ export default function HavenPage() {
     }));
     setInputValue('');
 
+    // --- IMAGE GENERATION INTERCEPT ---
+    const lowerText = text.toLowerCase();
+    const isImageCommand = lowerText.startsWith('draw') ||
+      lowerText.startsWith('image') ||
+      lowerText.startsWith('generate') ||
+      lowerText.startsWith('imagine');
+
+    if (isImageCommand && (currentSkin === 'neo' || currentSkin === 'mstramell')) {
+      // Extract prompt (remove the command word)
+      let prompt = text.replace(/^(draw|image|generate|imagine)\s*/i, '').trim();
+      if (!prompt) prompt = "something amazing";
+
+      // Construct URL (Local Proxy to bypass banners)
+      const encodedPrompt = encodeURIComponent(prompt);
+      // We pass the prompt to our own backend, which fetches the image cleanly
+      const imageUrl = `/api/image-proxy?prompt=${encodedPrompt}`;
+
+      // Add System Reply with Image
+      setTimeout(() => {
+        setChatHistory(prev => ({
+          ...prev,
+          [currentSkin]: [...prev[currentSkin],
+          { role: 'system', content: `Generative Matrix Accessed: "${prompt}"` },
+          { role: 'system', content: `![Generated Image](${imageUrl})` } // Markdown image syntax
+          ]
+        }));
+      }, 500); // Slight delay for realism
+
+      return; // STOP here, do not call LLM
+    }
+
     try {
       // Call Backend API
       const response = await fetch('/api/chat', {
@@ -151,7 +188,10 @@ export default function HavenPage() {
         })
       });
 
-      if (!response.ok) throw new Error("API Request Failed");
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.text || `API Error: ${response.status}`);
+      }
 
       const data = await response.json();
 
@@ -161,11 +201,11 @@ export default function HavenPage() {
         [currentSkin]: [...prev[currentSkin], { role: 'system', content: data.text }]
       }));
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       setChatHistory(prev => ({
         ...prev,
-        [currentSkin]: [...prev[currentSkin], { role: 'system', content: "Error: Could not connect to Haven Core." }]
+        [currentSkin]: [...prev[currentSkin], { role: 'system', content: `Error: ${error.message || "Connection Failed"}` }]
       }));
     }
   };
@@ -305,12 +345,8 @@ export default function HavenPage() {
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                   e.currentTarget.parentElement!.innerHTML = '';
-                  // This is a simplified fallback handling for React:
-                  // In a real app we'd swap components, but we'll stick to CSS logic mostly.
                 }}
               />
-              {/* Fallback implemented via conditional rendering or error boundary in fuller app. 
-                  For now we rely on the img loading successfully as verified. */}
             </div>
 
             {/* Neo Icon */}
@@ -335,21 +371,27 @@ export default function HavenPage() {
         <main className="flex-1 chat-viewport" ref={viewportRef}>
 
           {/* ALFRED HISTORY */}
-          <div className={`chat-section text-center ${currentSkin === 'alfred' ? 'active' : ''} ${chatHistory.alfred.length === 0 ? 'justify-center h-full' : 'items-center'}`}>
-            <div className={`${chatHistory.alfred.length === 0 ? 'mb-0' : 'mt-8 mb-4'}`}>
-              <h1 className="text-3xl font-medium mb-2 tracking-tight">Welcome back, Sir!</h1>
-              <p className="text-lg opacity-60 font-light">Where would you like to start today?</p>
-            </div>
+          <div ref={scrollRefAlfred} className={`chat-section ${currentSkin === 'alfred' ? 'active' : ''} ${chatHistory.alfred.length === 0 ? 'justify-center items-center' : 'justify-start items-center pt-24'}`}>
+            {chatHistory.alfred.length === 0 && (
+              <div className="flex flex-col items-center gap-6 animate-fade-in text-center px-4">
+                <h1 className="text-4xl font-light text-[var(--text-color)]">How can I help you, Master?</h1>
+              </div>
+            )}
 
             {/* Messages */}
-            <div className="w-full flex flex-col gap-2">
+            <div className="w-full max-w-2xl px-4 flex flex-col gap-4">
               {chatHistory.alfred.map((msg, idx) => (
-                <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} p-4 w-full animate-fade-in`}>
-                  <div className={`${msg.role === 'user'
-                    ? 'bg-[var(--accent-color)]/20 text-[var(--text-color)] rounded-tr-sm border-[var(--accent-color)]/30'
-                    : 'bg-[var(--panel-color)] text-[var(--text-color)] rounded-tl-sm border-[var(--border-color)]'} 
-                            px-6 py-3 rounded-2xl border inline-block text-lg backdrop-blur-sm shadow-sm max-w-[80%] text-left`}>
-                    {msg.content}
+                <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+                  <div className={`px-6 py-3 max-w-[85%] text-lg whitespace-pre-wrap break-words overflow-wrap-anywhere`}>
+                    <ReactMarkdown
+                      components={{
+                        img: ({ node, ...props }) => (
+                          <img {...props} className="chat-image" style={{ maxWidth: '100%' }} />
+                        )
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
                   </div>
                 </div>
               ))}
@@ -357,7 +399,7 @@ export default function HavenPage() {
           </div>
 
           {/* NEO HISTORY */}
-          <div className={`chat-section h-full w-full justify-center items-center text-center relative ${currentSkin === 'neo' ? 'active' : ''}`}>
+          <div ref={scrollRefNeo} className={`chat-section neo ${currentSkin === 'neo' ? 'active' : ''} ${chatHistory.neo.length === 0 ? 'justify-center items-center' : 'items-center pt-24'}`}>
 
             {/* Background Text for Neo */}
             <div className="text-[var(--text-color)] text-xs mb-8 opacity-70 absolute top-0 left-10 text-left font-mono">
@@ -381,10 +423,18 @@ export default function HavenPage() {
               {chatHistory.neo.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} p-4 w-full animate-fade-in`}>
                   <div className={`${msg.role === 'user'
-                    ? 'bg-[var(--accent-color)]/20 text-[var(--text-color)] rounded-tr-sm border-[var(--accent-color)]/30'
-                    : 'bg-[var(--panel-color)] text-[var(--text-color)] rounded-tl-sm border-[var(--border-color)]'} 
-                            px-6 py-3 rounded-2xl border inline-block text-lg backdrop-blur-sm shadow-sm max-w-[80%] text-left neo-text`}>
-                    {msg.content}
+                    ? 'bg-transparent text-[var(--accent-color)]'
+                    : 'bg-[var(--panel-color)] text-[var(--text-color)] rounded-tl-sm border border-[var(--border-color)] shadow-sm backdrop-blur-sm'} 
+                             px-6 py-3 rounded-2xl inline-block text-lg text-left neo-text whitespace-pre-wrap break-words overflow-wrap-anywhere max-w-[80%]`}>
+                    <ReactMarkdown
+                      components={{
+                        img: ({ node, ...props }) => (
+                          <img {...props} className="chat-image" style={{ maxWidth: '100%' }} />
+                        )
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
                   </div>
                 </div>
               ))}
@@ -392,7 +442,7 @@ export default function HavenPage() {
           </div>
 
           {/* MSTRAMELL HISTORY */}
-          <div className={`chat-section text-center ${currentSkin === 'mstramell' ? 'active' : ''} ${chatHistory.mstramell.length === 0 ? 'justify-center h-full' : 'items-center'}`}>
+          <div ref={scrollRefMsTramell} className={`chat-section mstramell ${currentSkin === 'mstramell' ? 'active' : ''} ${chatHistory.mstramell.length === 0 ? 'justify-center items-center' : 'items-center pt-24'}`}>
             <h1 className={`text-4xl italic text-[#dcd0b3] ${chatHistory.mstramell.length === 0 ? 'mb-0' : 'mt-12 mb-4'}`}>Hello, stranger...</h1>
 
             {/* Messages */}
@@ -403,7 +453,15 @@ export default function HavenPage() {
                     ? 'bg-[var(--accent-color)]/20 text-[var(--text-color)] rounded-tr-sm border-[var(--accent-color)]/30'
                     : 'bg-[var(--panel-color)] text-[var(--text-color)] rounded-tl-sm border-[var(--border-color)]'} 
                             px-6 py-3 rounded-2xl border inline-block text-lg backdrop-blur-sm shadow-sm max-w-[80%] text-left font-serif`}>
-                    {msg.content}
+                    <ReactMarkdown
+                      components={{
+                        img: ({ node, ...props }) => (
+                          <img {...props} className="chat-image" style={{ maxWidth: '100%' }} />
+                        )
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
                   </div>
                 </div>
               ))}
@@ -413,7 +471,7 @@ export default function HavenPage() {
         </main>
 
         {/* INPUT BAR */}
-        <div className="absolute bottom-10 left-0 right-0 flex justify-start pl-4 pr-4 md:justify-center md:pl-0 md:pr-0 z-20">
+        <div className="absolute bottom-10 left-0 right-0 flex justify-start pl-4 pr-4 md:justify-center md:pl-0 md:pr-0 z-[50]">
           <div className="w-[85%] md:w-full max-w-3xl flex items-end gap-3 transition-all duration-300 md:px-8">
 
 
@@ -457,13 +515,14 @@ export default function HavenPage() {
                 )}
               </div>
 
-              <input
-                type="text"
+              <textarea
+                ref={textareaRef}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Type..."
-                className="flex-1 bg-transparent px-6 py-4 outline-none text-lg min-w-0 font-inherit"
+                className="flex-1 bg-transparent px-6 py-4 outline-none text-lg min-w-0 font-inherit resize-none max-h-[200px] overflow-y-auto"
+                rows={1}
                 autoComplete="off"
                 id="user-input"
               />
