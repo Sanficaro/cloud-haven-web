@@ -10,6 +10,7 @@ import {
   MessageSquarePlus,
   Plus,
   Image as ImageIcon,
+  Upload,
   Send
 } from 'lucide-react';
 
@@ -25,8 +26,22 @@ export default function HavenPage() {
     neo: [],
     mstramell: []
   });
-
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showMobileInputs, setShowMobileInputs] = useState(false);
+  const touchStartX = useRef<number | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  const skins: Skin[] = ['alfred', 'neo', 'mstramell'];
+
+  // Detect mobile on mount
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Sync skin with DOM for CSS variables
   useEffect(() => {
@@ -43,6 +58,73 @@ export default function HavenPage() {
   const changeSkin = (skin: Skin) => {
     setCurrentSkin(skin);
   };
+
+  const cycleSkin = (direction: 'next' | 'prev') => {
+    const currentIndex = skins.indexOf(currentSkin);
+    let newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+
+    if (newIndex >= skins.length) newIndex = 0;
+    if (newIndex < 0) newIndex = skins.length - 1;
+
+    setCurrentSkin(skins[newIndex]);
+  };
+
+  // --- GESTURES (Exact Port from HTML) ---
+  const lastSwitchTime = useRef(0);
+  const COOLDOWN = 800; // ms
+
+  useEffect(() => {
+    // WHEEL / TRACKPAD SWIPE
+    const handleWheel = (e: WheelEvent) => {
+      // Check for horizontal scroll (trackpad usually)
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        if (Math.abs(e.deltaX) > 30) {
+          triggerSwitch(e.deltaX > 0 ? 'next' : 'prev');
+        }
+      }
+    };
+
+    // TOUCH SWIPE
+    let touchStartX = 0;
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartX = e.touches[0].clientX;
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      const touchEndX = e.changedTouches[0].clientX;
+      const diff = touchEndX - touchStartX;
+      if (diff < -25) triggerSwitch('next'); // Swipe Left -> Next (Right)
+      if (diff > 25) triggerSwitch('prev');  // Swipe Right -> Prev (Left)
+    };
+
+    const triggerSwitch = (direction: 'next' | 'prev') => {
+      const now = Date.now();
+      if (now - lastSwitchTime.current < COOLDOWN) return;
+
+      lastSwitchTime.current = now;
+
+      setCurrentSkin(prevSkin => {
+        const skins: Skin[] = ['alfred', 'neo', 'mstramell'];
+        const currentIndex = skins.indexOf(prevSkin);
+        let newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+
+        if (newIndex >= skins.length) newIndex = 0;
+        if (newIndex < 0) newIndex = skins.length - 1;
+
+        return skins[newIndex];
+      });
+    };
+
+    document.addEventListener('wheel', handleWheel);
+    document.addEventListener('touchstart', handleTouchStart);
+    document.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      document.removeEventListener('wheel', handleWheel);
+      document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, []);
 
   const handleSendMessage = async () => {
     const text = inputValue.trim();
@@ -89,9 +171,18 @@ export default function HavenPage() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleSendMessage();
+    if (isMobile) {
+      // Mobile: Enter = newline, Shift+Enter = send
+      if (e.key === 'Enter' && e.shiftKey) {
+        e.preventDefault();
+        handleSendMessage();
+      }
+    } else {
+      // Desktop: Enter = send, Shift+Enter = newline
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSendMessage();
+      }
     }
   };
 
@@ -105,13 +196,40 @@ export default function HavenPage() {
   };
 
   return (
-    <main suppressHydrationWarning className="relative w-full h-full overflow-hidden flex">
+    <main
+      suppressHydrationWarning
+      className="relative w-full h-full overflow-hidden flex"
+    >
       {/* SIDEBAR */}
-      <aside className="w-16 hover:w-64 transition-all duration-300 glass-panel border-r flex flex-col items-center py-6 z-20 overflow-hidden group shadow-2xl relative mr-4 rounded-r-2xl my-4 ml-0 h-[calc(100vh-2rem)]">
-        <div className="mb-8 p-2 rounded-lg text-[var(--accent-color)] ring-1 ring-[var(--accent-color)]/20">
-          <Menu className="w-6 h-6" />
+      {/* SIDEBAR (Desktop + Mobile Drawer) */}
+      <aside className={`
+        fixed inset-y-0 left-0 z-[100] bg-[var(--panel-color)] backdrop-blur-xl border-r border-[var(--border-color)]
+        transform transition-transform duration-300 ease-in-out
+        w-64 flex flex-col py-6 shadow-2xl
+        ${(isMobileMenuOpen || isSidebarOpen) ? 'translate-x-0' : '-translate-x-full md:-translate-x-full'}
+      `}>
+        {/* Branding (Always Visible in Drawer) */}
+        <div className="w-full px-6 mb-8 mt-20">
+          <h2 className="text-2xl font-bold tracking-tighter text-[var(--text-color)]">Haven.ai</h2>
+          <p className="text-xs text-[var(--text-color)]/50 mt-1">v. pz8</p>
         </div>
-        <div className="flex-1 w-full px-4 space-y-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-100 whitespace-nowrap">
+
+        {/* Spacer */}
+        <div className="flex-1"></div>
+
+        {/* New Chat Button */}
+        <div className="w-full px-4 mb-4">
+          <button
+            onClick={clearChat}
+            className="w-full flex items-center gap-3 p-3 bg-[var(--accent-color)]/10 hover:bg-[var(--accent-color)]/20 rounded-lg cursor-pointer transition-colors text-[var(--accent-color)] hover:text-[var(--accent-color)] border border-[var(--accent-color)]/30"
+          >
+            <MessageSquarePlus className="w-5 h-5" />
+            <span className="font-medium tracking-wide">New Chat</span>
+          </button>
+        </div>
+
+        {/* Bottom Navigation */}
+        <div className="w-full px-4 space-y-2 whitespace-nowrap">
           <div className="flex items-center gap-3 p-3 hover:bg-[var(--highlight-color)] rounded-lg cursor-pointer transition-colors text-[var(--text-color)]/80 hover:text-[var(--accent-color)]">
             <FolderOpen className="w-5 h-5" />
             <span className="font-medium tracking-wide">Memories</span>
@@ -121,7 +239,43 @@ export default function HavenPage() {
             <span className="font-medium tracking-wide">Settings</span>
           </div>
         </div>
+
+        {/* Footer Branding */}
+        <div className="w-full px-6 mt-4">
+          <p className="text-[10px] uppercase tracking-widest text-[var(--text-color)]/30">
+            Roberto Sansone
+          </p>
+        </div>
       </aside>
+
+      {/* Edge-Mounted Sidebar Toggle Buttons */}
+      {/* Close Button (visible when sidebar is open) */}
+      <button
+        onClick={() => {
+          setIsMobileMenuOpen(false);
+          setIsSidebarOpen(false);
+        }}
+        className={`fixed top-1/2 -translate-y-1/2 left-[256px] z-[110] p-2 rounded-r-lg bg-[var(--panel-color)] backdrop-blur-md border border-l-0 border-[var(--border-color)] text-[var(--text-color)] hover:bg-[var(--highlight-color)] transition-all shadow-lg ${(isMobileMenuOpen || isSidebarOpen) ? 'opacity-100 visible' : 'opacity-0 invisible'
+          }`}
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
+
+      {/* Open Button (visible when sidebar is closed) */}
+      <button
+        onClick={() => {
+          setIsMobileMenuOpen(true);
+          setIsSidebarOpen(true);
+        }}
+        className={`fixed top-1/2 -translate-y-1/2 left-0 z-50 p-2 rounded-r-lg bg-[var(--panel-color)] backdrop-blur-md border border-l-0 border-[var(--border-color)] text-[var(--text-color)] hover:bg-[var(--highlight-color)] transition-all shadow-lg ${(isMobileMenuOpen || isSidebarOpen) ? 'opacity-0 invisible' : 'opacity-100 visible'
+          }`}
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
 
       {/* CONTENT */}
       <div className="flex-1 flex flex-col relative w-full h-full">
@@ -129,11 +283,11 @@ export default function HavenPage() {
         {/* STICKY HEADER */}
         <div className="sticky-header">
           <div className="skin-slider flex gap-6 glass-panel px-6 py-3 rounded-full shadow-lg transition-all duration-500 ring-1 ring-white/10">
-            {(['alfred', 'neo', 'mstramell'] as Skin[]).map((skin) => (
+            {skins.map((skin) => (
               <button
                 key={skin}
                 onClick={() => changeSkin(skin)}
-                className={`w-4 h-4 rounded-full hover:scale-125 transition-all duration-300 ${currentSkin === skin
+                className={`w-6 h-6 rounded-full hover:scale-125 transition-all duration-300 ${currentSkin === skin
                   ? 'bg-[var(--indicator-color)] shadow-[0_0_15px_var(--indicator-color)] scale-125'
                   : 'bg-[var(--text-color)]/20'
                   }`}
@@ -181,9 +335,11 @@ export default function HavenPage() {
         <main className="flex-1 chat-viewport" ref={viewportRef}>
 
           {/* ALFRED HISTORY */}
-          <div className={`chat-section items-center text-center ${currentSkin === 'alfred' ? 'active' : ''}`}>
-            <h1 className="text-3xl font-medium mt-8 mb-2 tracking-tight">Welcome back, Sir!</h1>
-            <p className="text-lg opacity-60 font-light mb-8">Where would you like to start today?</p>
+          <div className={`chat-section text-center ${currentSkin === 'alfred' ? 'active' : ''} ${chatHistory.alfred.length === 0 ? 'justify-center h-full' : 'items-center'}`}>
+            <div className={`${chatHistory.alfred.length === 0 ? 'mb-0' : 'mt-8 mb-4'}`}>
+              <h1 className="text-3xl font-medium mb-2 tracking-tight">Welcome back, Sir!</h1>
+              <p className="text-lg opacity-60 font-light">Where would you like to start today?</p>
+            </div>
 
             {/* Messages */}
             <div className="w-full flex flex-col gap-2">
@@ -236,8 +392,8 @@ export default function HavenPage() {
           </div>
 
           {/* MSTRAMELL HISTORY */}
-          <div className={`chat-section items-center text-center ${currentSkin === 'mstramell' ? 'active' : ''}`}>
-            <h1 className="text-4xl italic mt-12 mb-4 text-[#dcd0b3]">Hello, stranger...</h1>
+          <div className={`chat-section text-center ${currentSkin === 'mstramell' ? 'active' : ''} ${chatHistory.mstramell.length === 0 ? 'justify-center h-full' : 'items-center'}`}>
+            <h1 className={`text-4xl italic text-[#dcd0b3] ${chatHistory.mstramell.length === 0 ? 'mb-0' : 'mt-12 mb-4'}`}>Hello, stranger...</h1>
 
             {/* Messages */}
             <div className="w-full flex flex-col gap-2">
@@ -257,23 +413,50 @@ export default function HavenPage() {
         </main>
 
         {/* INPUT BAR */}
-        <div className="absolute bottom-10 left-0 right-0 px-8 flex justify-center z-20">
-          <div className="w-full max-w-3xl flex items-end gap-3">
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={clearChat}
-                className="p-3 rounded-full hover:bg-[var(--accent-color)] hover:text-white transition-all text-[var(--text-color)]/60 hover:shadow-lg glass-panel">
-                <MessageSquarePlus className="w-6 h-6" />
-              </button>
+        <div className="absolute bottom-10 left-0 right-0 flex justify-start pl-4 pr-4 md:justify-center md:pl-0 md:pr-0 z-20">
+          <div className="w-[85%] md:w-full max-w-3xl flex items-end gap-3 transition-all duration-300 md:px-8">
+
+
+            {/* Desktop "Plus" (hidden on mobile now that we have the toggle, or we can keep it part of the group) */}
+            <div className="hidden md:block">
               <button className="p-3 rounded-full hover:bg-[var(--accent-color)] hover:text-white transition-all text-[var(--text-color)]/60 hover:shadow-lg glass-panel">
                 <Plus className="w-6 h-6" />
               </button>
             </div>
 
             <div
-              className="flex-1 glass-panel rounded-2xl p-2 shadow-2xl flex items-center focus-within:ring-1 focus-within:ring-[var(--accent-color)]/50 transition-all duration-300"
+              className="flex-1 glass-panel rounded-2xl p-2 shadow-2xl flex items-center focus-within:ring-1 focus-within:ring-[var(--accent-color)]/50 transition-all duration-300 relative"
               style={{ backgroundColor: 'var(--input-bg)' }}
             >
+              {/* Mobile Menu Button - Inside Input Bar */}
+              <div className="relative md:hidden">
+                <button
+                  onClick={() => setShowMobileInputs(!showMobileInputs)}
+                  className="p-2 rounded-lg hover:bg-[var(--highlight-color)] text-[var(--text-color)]/70 transition-all"
+                >
+                  <Plus className="w-5 h-5" />
+                </button>
+
+                {/* Pull-up Menu */}
+                {showMobileInputs && (
+                  <div className="absolute bottom-full left-0 mb-2 bg-[var(--panel-color)] border border-[var(--border-color)] rounded-lg shadow-xl p-2 min-w-[180px] backdrop-blur-xl">
+                    <button
+                      onClick={triggerGenerate}
+                      className="w-full flex items-center gap-3 p-3 hover:bg-[var(--highlight-color)] rounded-lg text-[var(--text-color)]/80 hover:text-[var(--accent-color)] transition-all"
+                    >
+                      <ImageIcon className="w-5 h-5" />
+                      <span className="text-sm">Generate Image</span>
+                    </button>
+                    <button
+                      className="w-full flex items-center gap-3 p-3 hover:bg-[var(--highlight-color)] rounded-lg text-[var(--text-color)]/80 hover:text-[var(--accent-color)] transition-all"
+                    >
+                      <Upload className="w-5 h-5" />
+                      <span className="text-sm">Upload File</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <input
                 type="text"
                 value={inputValue}
@@ -287,7 +470,7 @@ export default function HavenPage() {
 
               <button
                 onClick={triggerGenerate}
-                className="p-3.5 mr-1 rounded-xl hover:bg-[var(--highlight-color)] text-[var(--text-color)]/50 hover:text-[var(--accent-color)] transition-all">
+                className="hidden md:block p-3.5 mr-1 rounded-xl hover:bg-[var(--highlight-color)] text-[var(--text-color)]/50 hover:text-[var(--accent-color)] transition-all">
                 <ImageIcon className="w-6 h-6" />
               </button>
               <button

@@ -1,0 +1,30 @@
+      {/* Edge-Mounted Sidebar Toggle Buttons */}
+      {/* Close Button (visible when sidebar is open) */}
+      <button 
+        onClick={() => {
+          setIsMobileMenuOpen(false);
+          setIsSidebarOpen(false);
+        }}
+        className={`fixed top-1/2 -translate-y-1/2 left-[256px] z-[110] p-2 rounded-r-lg bg-[var(--panel-color)] backdrop-blur-md border border-l-0 border-[var(--border-color)] text-[var(--text-color)] hover:bg-[var(--highlight-color)] transition-all shadow-lg ${
+          (isMobileMenuOpen || isSidebarOpen) ? 'opacity-100 visible' : 'opacity-0 invisible'
+        }`}
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
+
+      {/* Open Button (visible when sidebar is closed) */}
+      <button 
+        onClick={() => {
+          setIsMobileMenuOpen(true);
+          setIsSidebarOpen(true);
+        }}
+        className={`fixed top-1/2 -translate-y-1/2 left-0 z-50 p-2 rounded-r-lg bg-[var(--panel-color)] backdrop-blur-md border border-l-0 border-[var(--border-color)] text-[var(--text-color)] hover:bg-[var(--highlight-color)] transition-all shadow-lg ${
+          (isMobileMenuOpen || isSidebarOpen) ? 'opacity-0 invisible' : 'opacity-100 visible'
+        }`}
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </button>

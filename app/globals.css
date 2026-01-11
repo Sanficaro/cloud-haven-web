@@ -84,21 +84,124 @@ body {
 }
 
 .chat-viewport {
-  padding-top: 180px;
-  padding-bottom: 8rem;
+  position: relative;
+  /* Padding moved to internal sections for scrolling */
+  /* padding-top: 180px; */
+  /* padding-bottom: 8rem; */
   overflow-y: auto;
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
+  /* Removed smooth to prevent scroll locking */
 }
 
+/* Smooth Fade Transition Logic */
 .chat-section {
-  display: none;
+  display: flex !important;
+  /* Always flex, control visibility with opacity/z-index */
   flex-direction: column;
+  position: absolute;
+  /* Absolute to allow overlap */
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  opacity: 0;
+  z-index: 0;
+  pointer-events: none;
+  /* Prevent clicks when hidden */
+  transition: opacity 0.5s ease-in-out;
+  /* Smooth fade */
 }
 
 .chat-section.active {
-  display: flex;
-  animation: fadeUp 0.4s ease forwards;
+  opacity: 1;
+  z-index: 10;
+  pointer-events: auto;
+  /* Enable clicks when active */
+  position: relative;
+  /* Relative when active to take up space? No, keep absolute to prevent height jumps, or use container height */
+  /* Actually, for scrolling to work, the active one needs to be relative OR the container needs to handle scrolling. 
+     Given the structure, absolute is safer for transition, but scrolling might be tricky. 
+     Let's try absolute inset-0 */
 }
+
+/* 
+   CRITICAL: content needs to scroll. 
+   If sections are absolute, the parent (.chat-viewport) determines the scroll area.
+   But if section is absolute height 100%, it might clip.
+   Let's ensure .chat-section takes full height and scrolls internally if needed, OR parent scrolls.
+   The parent .chat-viewport has overflow-y: auto.
+   If .chat-section is absolute, it might not expand the parent.
+   
+   Better Approach for "Safe" Transition:
+   - Use Grid stack (all items in same grid cell)
+*/
+
+.chat-viewport {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+  /* padding is already set */
+}
+
+.chat-section {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  z-index: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease-in-out;
+  overflow-y: auto;
+  /* Internal scrolling */
+  height: 100%;
+  width: 100%;
+  padding-bottom: 8rem;
+  /* Space for input */
+  padding-top: 180px;
+  /* Space for header */
+}
+
+/* Actually, the viewport is the scroller in original design. 
+   If we use grid stack, the viewport height is fixed (flex-1). 
+   So the chat-section itself should scroll or be scrollable.
+   Original: .chat-viewport { overflow-y: auto }
+   
+   If we stack them, they need to be inside the scrollable area. 
+   But if they fade, they must overlap.
+   
+   Let's stick to the Absolute approach but ensures scroll works.
+*/
+/* SMOOTH TRANSITION (Grid Stack Method) */
+.chat-viewport {
+  display: grid !important;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+  overflow: hidden !important;
+}
+
+.chat-section {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex !important;
+  flex-direction: column;
+  opacity: 0;
+  z-index: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease-in-out;
+  overflow-y: auto;
+  height: 100%;
+  width: 100%;
+  padding-bottom: 8rem;
+  padding-top: 180px;
+}
+
+.chat-section.active {
+  opacity: 1;
+  z-index: 10;
+  pointer-events: auto;
+}
+
 
 .avatar-view {
   display: none;
@@ -167,6 +270,101 @@ body {
   background-color: var(--panel-color);
   backdrop-filter: blur(12px);
   border: 1px solid var(--border-color);
+}
+
+/* === MOBILE OPTIMIZATION === */
+@media (max-width: 768px) {
+
+  /* CRITICAL: Prevent horizontal overflow */
+  body,
+  html,
+  main {
+    overflow-x: hidden !important;
+    max-width: 100vw !important;
+  }
+
+  /* Hide Sidebar on mobile to save space */
+  /* DISABLED to allow hamburger menu drawer to work */
+  /* aside {
+    display: none !important;
+  } */
+
+  /* Adjust Chat Viewport padding */
+  .chat-viewport {
+    padding-top: 120px;
+    /* Reduced from 180px */
+    padding-bottom: 6rem;
+    /* Reduced bottom padding */
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* Adjust Sticky Header / Avatar Stage */
+  .sticky-header {
+    padding-top: 0.5rem;
+  }
+
+  .avatar-stage {
+    margin-top: 0.5rem;
+    transform: scale(0.8);
+    /* Shrink avatars slightly */
+  }
+
+  /* Adjust Input Bar positioning */
+  .absolute.bottom-10 {
+    bottom: 1rem !important;
+  }
+
+  /* Constrain Input Container Width */
+  .absolute.bottom-10>div {
+    max-width: 100% !important;
+  }
+
+  /* Shrink glass panel input padding on mobile */
+  .glass-panel input {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  /* Make message bubbles wider on mobile */
+  /* Input Controls: Don't hide, but shrink gap */
+  .input-left-controls {
+    display: flex !important;
+    /* Restore controls */
+    gap: 0.25rem !important;
+    transform: scale(0.9);
+    /* Slight shrink */
+  }
+
+  /* Chat Bubbles: Use more width */
+  .chat-section .max-w-\[80\%\] {
+    max-width: 92% !important;
+  }
+
+  /* Word wrap for message bubbles */
+  .chat-section>div>div>div>div {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  /* Heading Text scaling */
+  .chat-section h1 {
+    font-size: clamp(1.75rem, 6vw, 2.25rem) !important;
+  }
+
+  /* Further constrain input on very narrow screens */
+  @media (max-width: 400px) {
+    .absolute.bottom-10 {
+      left: 0.25rem !important;
+      right: 0.25rem !important;
+      padding-left: 0.25rem !important;
+      padding-right: 0.25rem !important;
+    }
+
+    .glass-panel {
+      padding: 0.5rem !important;
+    }
+  }
 }
 
 #user-input {
