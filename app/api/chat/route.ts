@@ -7,6 +7,23 @@ export async function POST(req: Request) {
         const body = await req.json();
         const { messages, skin } = body;
 
+        const now = new Date();
+        const timeStr = now.toLocaleString('en-GB', {
+            day: '2-digit', month: 'long', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            timeZoneName: 'short'
+        });
+
+        const systemPrompts: Record<string, string> = {
+            alfred: `You are Alfred, the loyal and super-intelligent digital butler to 'The Architect'. 
+You have real-time access to the internet. For any query about people, events, news, time, or specific projects like 'Gente Distratta' or 'Video Metro Napoli', use your search tools immediately to provide accurate, up-to-date intelligence.
+Keep responses concise, formal, and helpful. 
+Current Time: ${timeStr}`,
+            neo: `TERMINAL_MODE. Hacker construct. Direct, cryptic, analytical. Time: ${timeStr}`,
+            mstramell: `Ms. Tramell. Charming, mysterious, confident. Soulful companion. Time: ${timeStr}`
+        };
+        const systemPrompt = systemPrompts[skin] || `AI Assistant. Time: ${timeStr}`;
+
         // --- ALFRED: Direct Google SDK (Super Mode) ---
         if (skin === 'alfred') {
             const googleKey = process.env.GOOGLE_API_KEY;
@@ -15,7 +32,7 @@ export async function POST(req: Request) {
                 try {
                     const genAI = new GoogleGenerativeAI(googleKey);
                     const model = genAI.getGenerativeModel({
-                        model: "gemini-flash-latest",
+                        model: "gemini-2.0-flash",
                         tools: [{ googleSearch: {} } as any]
                     });
 
@@ -30,7 +47,7 @@ export async function POST(req: Request) {
                         history: history,
                         systemInstruction: {
                             role: "model",
-                            parts: [{ text: "You are Alfred, a polite, loyal, and super-intelligent digital butler. You serve 'The Architect'. You have access to Google Search. When asked about real-world events (news, weather, stocks), USE THE SEARCH TOOL. Keep responses concise and formal." }]
+                            parts: [{ text: systemPrompt }]
                         }
                     });
 
@@ -41,45 +58,37 @@ export async function POST(req: Request) {
                     return NextResponse.json({ role: 'assistant', text: text });
                 } catch (e: any) {
                     console.error("Alfred Google SDK failed, falling back to OpenRouter:", e.message);
-                    // If error is NOT a quota issue, we might want to return it, 
-                    // but usually, we want to try the backup brain if we have credits.
                 }
             }
         }
 
-        // --- BACKUP / NEO / MSTRAMELL: OpenRouter (PAID TIER) ---
+        // --- OPENROUTER (NEO, MSTRAMELL, or ALFRED FALLBACK) ---
         const mode = (skin === 'neo' || skin === 'mstramell') ? 'spice' : 'normal';
         const apiKey = process.env.OPENROUTER_API_KEY;
 
         if (!apiKey) {
             return NextResponse.json({
-                text: "⚠️ **SYSTEM ALERT**: Neural Link failure. Please check your API keys."
+                text: "⚠️ **SYSTEM ALERT**: Neural Link failure. Key missing."
             });
         }
 
-        const modelObj = mode === 'spice' ? MODELS.spice : MODELS.normal;
-
-        const systemPrompts: Record<string, string> = {
-            alfred: "You are Alfred, a polite, loyal, and super-intelligent digital butler. You are currently operating on 'Secondary Neural Circuits'.",
-            neo: "You are active in TERMINAL_MODE. You are a hacker construct. Use technical jargon, be direct, cryptic, and analytical. You are 'LOCKED ON'.",
-            mstramell: "You are Ms. Tramell. You are charming, mysterious, slightly dangerous, and confident. You engage in deep, soulful, or playful conversation. You are 'The Soulful Companion'."
-        };
-
-        const systemPrompt = systemPrompts[skin] || "You are a helpful AI.";
+        const modelObj = mode === 'spice' ? MODELS.spice : (skin === 'alfred' ? MODELS.research : MODELS.normal);
 
         const response = await fetch(OPENROUTER_API_URL, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
-                'HTTP-Referer': 'https://haven.ai',
+                'HTTP-Referer': 'http://localhost:3000',
                 'X-Title': 'Haven Design Lab',
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 model: modelObj,
                 messages: [{ role: "system", content: systemPrompt }, ...messages],
-                temperature: mode === 'spice' ? 0.9 : 0.7,
+                temperature: 0.5,
                 max_tokens: 1000,
+                web_search: skin === 'alfred' ? true : false,
+                ...(skin === 'alfred' ? { providers: { order: ["Perplexity", "Google"] } } : {})
             })
         });
 
@@ -93,11 +102,10 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ role: 'assistant', text: content });
 
-
     } catch (error: any) {
         console.error("Route Error:", error);
         return NextResponse.json({
-            text: `**Critical Error**: ${error.message || error.toString()}`
+            text: `**Critical Error**: ${error.message}`
         }, { status: 500 });
     }
 }

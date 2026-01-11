@@ -342,10 +342,6 @@ export default function HavenPage() {
                 src="/media/icons/alfred_icon.jpg"
                 alt="Alfred"
                 className="rounded-avatar alfred-border"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  e.currentTarget.parentElement!.innerHTML = '';
-                }}
               />
             </div>
 
