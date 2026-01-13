@@ -114,7 +114,8 @@ body {
 /* Active State */
 .chat-section.active {
   opacity: 1;
-  z-index: 10;
+  z-index: 5;
+  /* Lowered from 10 to ensure input @ 50 is safe */
   pointer-events: auto;
   position: relative;
 }
@@ -139,10 +140,22 @@ body {
   box-shadow: 0 0 10px #00ff41;
 }
 
-/* Blind Date Specific Image Style */
+/* Blind Date Specific Styling */
 .chat-section.blind_date .chat-image {
   border: 2px solid #d4af37;
   box-shadow: 0 0 15px rgba(212, 175, 55, 0.3);
+}
+
+/* Scarlet's Action Narration (Asterisks) */
+.chat-section.blind_date em,
+.chat-section.blind_date i {
+  color: rgba(212, 175, 55, 0.7);
+  /* Softer, translucent gold */
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  opacity: 0.9;
 }
 
 .avatar-view {
@@ -260,4 +273,64 @@ body {
 #user-input::placeholder {
   color: var(--input-text-color);
   opacity: 0.5;
+}
+
+/* SEARCH WINDOW (ALFRED LIVE SEARCH) */
+.search-window-container {
+  position: fixed;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--panel-color);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.5), 0 18px 36px -18px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  transition: opacity 0.3s ease;
+}
+
+.search-window-header {
+  height: 40px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  cursor: grab;
+  user-select: none;
+  color: var(--text-color);
+}
+
+.search-window-header:active {
+  cursor: grabbing;
+}
+
+.search-window-resize {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  cursor: nwse-resize;
+  z-index: 10;
+  background: linear-gradient(135deg, transparent 50%, var(--accent-color) 50%);
+  opacity: 0.3;
+  transition: opacity 0.2s;
+}
+
+.search-window-resize:hover {
+  opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+  .search-window-container {
+    border-radius: 16px;
+    z-index: 300;
+  }
+
+  .search-window-header {
+    cursor: default;
+  }
 }

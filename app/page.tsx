@@ -26,6 +26,11 @@ export default function HavenPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchPos, setSearchPos] = useState({ x: 100, y: 100 });
+  const [searchSize, setSearchSize] = useState({ w: 800, h: 600 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   const skins: Skin[] = ['alfred', 'agent_smith', 'blind_date'];
 
@@ -100,22 +105,54 @@ export default function HavenPage() {
         if (newIndex < 0) newIndex = skins.length - 1;
         return skins[newIndex];
       });
+      document.addEventListener('wheel', handleWheel);
+      document.addEventListener('touchstart', handleTouchStart);
+      document.addEventListener('touchend', handleTouchEnd);
+
+      return () => {
+        document.removeEventListener('wheel', handleWheel);
+        document.removeEventListener('touchstart', handleTouchStart);
+        document.removeEventListener('touchend', handleTouchEnd);
+      };
     };
 
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDragging) {
+        setSearchPos({
+          x: e.clientX - dragOffset.x,
+          y: e.clientY - dragOffset.y
+        });
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
     document.addEventListener('wheel', handleWheel);
     document.addEventListener('touchstart', handleTouchStart);
     document.addEventListener('touchend', handleTouchEnd);
 
     return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('wheel', handleWheel);
       document.removeEventListener('touchstart', handleTouchStart);
       document.removeEventListener('touchend', handleTouchEnd);
     };
-  }, []);
+  }, [isDragging, dragOffset]);
 
   const handleSendMessage = async () => {
     const text = inputMessage.trim();
     if (!text) return;
+
+    // Instant UI clearing - restore responsiveness
+    setInputMessage('');
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+    }
 
     const newUserMsg: Message = { role: 'user', content: text };
     const updatedHistory = [...chatHistory[currentSkin], newUserMsg];
@@ -124,7 +161,6 @@ export default function HavenPage() {
       ...prev,
       [currentSkin]: updatedHistory
     }));
-    setInputMessage('');
 
     // --- IMAGE GENERATION INTERCEPT ---
     const lowerText = text.toLowerCase();
@@ -173,14 +209,12 @@ export default function HavenPage() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (isMobile) {
-      if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); handleSendMessage(); }
-    } else {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void handleSendMessage();
     }
   };
-
   const triggerGenerate = () => { setInputMessage(prev => "/image " + prev); };
 
   return (
@@ -193,7 +227,7 @@ export default function HavenPage() {
         </div>
         <div className="flex-1"></div>
         <div className="w-full px-4 mb-4">
-          <button className="w-full flex items-center gap-3 p-3 bg-[var(--accent-color)]/10 hover:bg-[var(--accent-color)]/20 rounded-lg cursor-pointer transition-colors text-[var(--accent-color)] hover:text-[var(--accent-color)] border border-[var(--accent-color)]/30">
+          <button className="w-full flex items-center gap-3 p-3 bg-[var(--accent-color)]/10 hover:bg-[var(--accent-color)]/20 rounded-lg cursor-pointer transition-colors text-[var(--accent-color)] hover:text-[var(--accent-color)] border border-[var(--border-color)]">
             <MessageSquarePlus className="w-5 h-5" />
             <span className="font-medium tracking-wide">New Chat</span>
           </button>
@@ -305,7 +339,17 @@ export default function HavenPage() {
         {/* INPUT */}
         <div className="absolute bottom-10 left-0 right-0 flex justify-center z-[50]">
           <div className="w-full max-w-3xl flex items-end gap-3 px-8">
-            <div className="hidden md:block">
+            <div className="hidden md:flex flex-col gap-3">
+              {currentSkin === 'alfred' && (
+                <button
+                  onClick={() => setShowSearch(true)}
+                  className="p-3 rounded-full bg-[var(--accent-color)]/10 hover:bg-[var(--accent-color)] text-[var(--accent-color)] hover:text-white transition-all shadow-lg border border-[var(--accent-color)]/30 group relative"
+                  title="Live Search"
+                >
+                  <Sparkles className="w-6 h-6 group-hover:animate-pulse" />
+                  <span className="absolute left-full ml-3 px-2 py-1 bg-black/80 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">Live Search</span>
+                </button>
+              )}
               <button className="p-3 rounded-full hover:bg-[var(--accent-color)] hover:text-white transition-all text-[var(--text-color)]/60 glass-panel"><Plus className="w-6 h-6" /></button>
             </div>
             <div className="flex-1 glass-panel rounded-2xl p-2 shadow-2xl flex items-center focus-within:ring-1 focus-within:ring-[var(--accent-color)]/50 relative" style={{ backgroundColor: 'var(--input-bg)' }}>
@@ -313,6 +357,9 @@ export default function HavenPage() {
                 <button onClick={() => setShowMobileInputs(!showMobileInputs)} className="p-2 rounded-lg text-[var(--text-color)]/70"><Plus className="w-5 h-5" /></button>
                 {showMobileInputs && (
                   <div className="absolute bottom-full left-0 mb-2 bg-[var(--panel-color)] border border-[var(--border-color)] rounded-lg p-2 min-w-[180px] backdrop-blur-xl">
+                    {currentSkin === 'alfred' && (
+                      <button onClick={() => { setShowSearch(true); setShowMobileInputs(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-[var(--highlight-color)] rounded-lg text-sm"><Sparkles className="w-5 h-5" />Live Search</button>
+                    )}
                     <button onClick={triggerGenerate} className="w-full flex items-center gap-3 p-3 hover:bg-[var(--highlight-color)] rounded-lg text-sm"><ImageIcon className="w-5 h-5" />Generate Image</button>
                     <button className="w-full flex items-center gap-3 p-3 hover:bg-[var(--highlight-color)] rounded-lg text-sm"><Upload className="w-5 h-5" />Upload File</button>
                   </div>
@@ -324,6 +371,73 @@ export default function HavenPage() {
             </div>
           </div>
         </div>
+
+        {/* SEARCH IFRAME */}
+        {showSearch && (
+          <div
+            className="search-window-container"
+            style={{
+              left: isMobile ? '5%' : `${searchPos.x}px`,
+              top: isMobile ? '10%' : `${searchPos.y}px`,
+              width: isMobile ? '90%' : `${searchSize.w}px`,
+              height: isMobile ? '80%' : `${searchSize.h}px`
+            }}
+          >
+            <div
+              className="search-window-header"
+              onMouseDown={(e) => {
+                if (isMobile) return;
+                setIsDragging(true);
+                setDragOffset({ x: e.clientX - searchPos.x, y: e.clientY - searchPos.y });
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[var(--accent-color)]" />
+                <span className="text-xs uppercase tracking-widest font-bold">Alfred Live Search Link</span>
+              </div>
+              <button
+                onClick={() => setShowSearch(false)}
+                className="hover:text-[var(--accent-color)] transition-colors p-1"
+              >
+                <Plus className="w-5 h-5 rotate-45" />
+              </button>
+            </div>
+            <div className="w-full h-full relative">
+              <iframe
+                src="https://www.google.com/search?igu=1"
+                className="w-full h-full border-0 bg-white"
+                title="Alfred Search"
+              />
+              {!isMobile && (
+                <div
+                  className="search-window-resize"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    const startX = e.clientX;
+                    const startY = e.clientY;
+                    const startW = searchSize.w;
+                    const startH = searchSize.h;
+
+                    const handleResizeMove = (moveEvent: MouseEvent) => {
+                      setSearchSize({
+                        w: Math.max(400, startW + (moveEvent.clientX - startX)),
+                        h: Math.max(300, startH + (moveEvent.clientY - startY))
+                      });
+                    };
+
+                    const handleResizeEnd = () => {
+                      document.removeEventListener('mousemove', handleResizeMove);
+                      document.removeEventListener('mouseup', handleResizeEnd);
+                    };
+
+                    document.addEventListener('mousemove', handleResizeMove);
+                    document.addEventListener('mouseup', handleResizeEnd);
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );
