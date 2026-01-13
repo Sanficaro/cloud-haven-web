@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useState } from 'react';
-import { Send, Menu, Plus, Upload, Image as ImageIcon, Sparkles, Terminal, User, MessageSquarePlus, FolderOpen, Settings, Shirt, Wine } from 'lucide-react';
+import { Send, Menu, Plus, Upload, Image as ImageIcon, Sparkles, Terminal, User, MessageSquarePlus, FolderOpen, Settings, Shirt, Wine, Wand2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import './globals.css';
 
@@ -24,6 +24,7 @@ export default function HavenPage() {
   const scrollRefAgentSmith = useRef<HTMLDivElement>(null);
   const scrollRefBlindDate = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -77,20 +78,37 @@ export default function HavenPage() {
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-        if (Math.abs(e.deltaX) > 30) {
+        const threshold = isMobile ? 100 : 30;
+        if (Math.abs(e.deltaX) > threshold) {
           triggerSwitch(e.deltaX > 0 ? 'next' : 'prev');
         }
       }
     };
 
     let touchStartX = 0;
-    const handleTouchStart = (e: TouchEvent) => { touchStartX = e.touches[0].clientX; };
+    let touchStartY = 0;
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    };
 
     const handleTouchEnd = (e: TouchEvent) => {
       const touchEndX = e.changedTouches[0].clientX;
-      const diff = touchEndX - touchStartX;
-      if (diff < -25) triggerSwitch('next');
-      if (diff > 25) triggerSwitch('prev');
+      const touchEndY = e.changedTouches[0].clientY;
+      const deltaX = touchEndX - touchStartX;
+      const deltaY = touchEndY - touchStartY;
+
+      if (isMobile) {
+        // Refined logic for Mobile: 90px threshold + Vector Isolation (2.5x ratio)
+        if (Math.abs(deltaX) > 90 && Math.abs(deltaX) > Math.abs(deltaY) * 2.5) {
+          triggerSwitch(deltaX < 0 ? 'next' : 'prev');
+        }
+      } else {
+        // Legacy sensitivity for Tablets/Desktop Touch
+        if (Math.abs(deltaX) > 25) {
+          triggerSwitch(deltaX < 0 ? 'next' : 'prev');
+        }
+      }
     };
 
     const triggerSwitch = (direction: 'next' | 'prev') => {
@@ -143,6 +161,30 @@ export default function HavenPage() {
       document.removeEventListener('touchend', handleTouchEnd);
     };
   }, [isDragging, dragOffset]);
+
+  const handleInsertActionMarker = () => {
+    if (!inputRef.current) return;
+    const start = inputRef.current.selectionStart;
+    const end = inputRef.current.selectionEnd;
+    const newText = inputMessage.substring(0, start) + "** **" + inputMessage.substring(end);
+    setInputMessage(newText);
+
+    // Set cursor between the stars
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.setSelectionRange(start + 3, start + 3);
+      }
+    }, 0);
+  };
+
+  const handleFileUploadClick = () => fileInputRef.current?.click();
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setInputMessage(prev => prev + ` [Attached: ${file.name}] `);
+  };
 
   const handleSendMessage = async () => {
     const text = inputMessage.trim();
@@ -210,7 +252,7 @@ export default function HavenPage() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !isMobile) {
       e.preventDefault();
       void handleSendMessage();
     }
@@ -219,6 +261,7 @@ export default function HavenPage() {
 
   return (
     <main suppressHydrationWarning className="relative w-full h-full overflow-hidden flex">
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
       {/* SIDEBAR */}
       <aside className={`fixed inset-y-0 left-0 z-[100] bg-[var(--panel-color)] backdrop-blur-xl border-r border-[var(--border-color)] transform transition-transform duration-300 ease-in-out w-64 flex flex-col py-6 shadow-2xl ${(isMobileMenuOpen || isSidebarOpen) ? 'translate-x-0' : '-translate-x-full md:-translate-x-full'}`}>
         <div className="w-full px-6 mb-8 mt-20">
@@ -338,6 +381,17 @@ export default function HavenPage() {
 
         {/* INPUT */}
         <div className="absolute bottom-10 left-0 right-0 flex justify-center z-[50]">
+          {/* SCARLET MOBILE ACTION BUTTON: Centered floating above input */}
+          {currentSkin === 'blind_date' && (
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 md:hidden">
+              <button
+                onClick={handleInsertActionMarker}
+                className="p-4 rounded-full bg-[#c5b358]/10 backdrop-blur-md border border-[#c5b358]/30 text-[#dcd0b3] shadow-2xl active:scale-95 transition-transform"
+              >
+                <Wand2 className="w-6 h-6" />
+              </button>
+            </div>
+          )}
           <div className="w-full max-w-3xl flex items-end gap-3 px-8">
             <div className="hidden md:flex flex-col gap-3">
               {currentSkin === 'alfred' && (
@@ -350,7 +404,17 @@ export default function HavenPage() {
                   <span className="absolute left-full ml-3 px-2 py-1 bg-black/80 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">Live Search</span>
                 </button>
               )}
-              <button className="p-3 rounded-full hover:bg-[var(--accent-color)] hover:text-white transition-all text-[var(--text-color)]/60 glass-panel"><Plus className="w-6 h-6" /></button>
+              <button onClick={handleFileUploadClick} className="p-3 rounded-full hover:bg-[var(--accent-color)] hover:text-white transition-all text-[var(--text-color)]/60 glass-panel" title="Upload File"><Plus className="w-6 h-6" /></button>
+              {currentSkin === 'blind_date' && (
+                <button
+                  onClick={handleInsertActionMarker}
+                  className="p-3 rounded-full bg-[#c5b358]/10 hover:bg-[#c5b358]/20 text-[#dcd0b3] border border-[#c5b358]/30 transition-all shadow-lg hover:scale-110 group relative"
+                  title="Action Marker"
+                >
+                  <Wand2 className="w-6 h-6" />
+                  <span className="absolute left-full ml-3 px-2 py-1 bg-black/80 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">Narration</span>
+                </button>
+              )}
             </div>
             <div className="flex-1 glass-panel rounded-2xl p-2 shadow-2xl flex items-center focus-within:ring-1 focus-within:ring-[var(--accent-color)]/50 relative" style={{ backgroundColor: 'var(--input-bg)' }}>
               <div className="relative md:hidden">
@@ -361,7 +425,7 @@ export default function HavenPage() {
                       <button onClick={() => { setShowSearch(true); setShowMobileInputs(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-[var(--highlight-color)] rounded-lg text-sm"><Sparkles className="w-5 h-5" />Live Search</button>
                     )}
                     <button onClick={triggerGenerate} className="w-full flex items-center gap-3 p-3 hover:bg-[var(--highlight-color)] rounded-lg text-sm"><ImageIcon className="w-5 h-5" />Generate Image</button>
-                    <button className="w-full flex items-center gap-3 p-3 hover:bg-[var(--highlight-color)] rounded-lg text-sm"><Upload className="w-5 h-5" />Upload File</button>
+                    <button onClick={() => { handleFileUploadClick(); setShowMobileInputs(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-[var(--highlight-color)] rounded-lg text-sm"><Upload className="w-5 h-5" />Upload File</button>
                   </div>
                 )}
               </div>

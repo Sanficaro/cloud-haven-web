@@ -226,44 +226,75 @@ body {
   }
 
   .chat-viewport {
-    padding-top: 120px;
+    padding-top: 180px !important;
     padding-bottom: 6rem;
-    padding-left: 1rem;
-    padding-right: 1rem;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
   }
 
   .sticky-header {
-    padding-top: 0.5rem;
+    padding-top: 0.5rem !important;
+    height: 180px !important;
   }
 
   .avatar-stage {
-    margin-top: 0.5rem;
-    transform: scale(0.8);
+    margin-top: 3.5rem !important;
+    transform: scale(1.6);
+    margin-bottom: 2rem;
   }
 
   .absolute.bottom-10 {
-    bottom: 1rem !important;
+    bottom: 2.5rem !important;
+    left: -0.5rem !important;
+    right: -1rem !important;
   }
 
-  .glass-panel input {
-    padding-left: 0.75rem !important;
+  /* Agent Smith: Skin-specific ergonomics */
+  :root[data-skin="agent_smith"] .absolute.bottom-10 {
+    left: -1rem !important;
+    right: 1rem !important;
+  }
+
+  /* Agent Smith: Force Send button to Black */
+  :root[data-skin="agent_smith"] .absolute.bottom-10 button:last-child {
+    color: #000000 !important;
+  }
+
+  .glass-panel input,
+  .glass-panel textarea {
+    padding-left: 0rem !important;
     padding-right: 0.75rem !important;
+    line-height: 1.5 !important;
   }
 
-  .chat-section .max-w-\[80\%\] {
-    max-width: 92% !important;
+  /* Full-Width Conversation Refinement */
+  .chat-section .max-w-\[80\%\],
+  .chat-section .max-w-\[85\%\] {
+    max-width: 98% !important;
+  }
+
+  .chat-section .w-full.max-w-2xl,
+  .chat-section .w-full.max-w-3xl,
+  .chat-section .w-full.max-w-4xl {
+    max-width: 100% !important;
+  }
+
+  /* Internal Bubble Refinement */
+  .chat-section .px-6,
+  .chat-section .px-8 {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  /* Scarlet-Specific: Center alignment */
+  .chat-section.blind_date .px-8 {
+    text-align: center !important;
   }
 
   .chat-section h1 {
     font-size: clamp(1.75rem, 6vw, 2.25rem) !important;
   }
 
-  @media (max-width: 400px) {
-    .absolute.bottom-10 {
-      left: 0.25rem !important;
-      right: 0.25rem !important;
-    }
-  }
 }
 
 #user-input {
