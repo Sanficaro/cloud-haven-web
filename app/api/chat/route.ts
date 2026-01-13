@@ -165,7 +165,7 @@ Maintain the order of sensual exploration. Eliminate the boundaries. Ensure the 
             timeZoneName: 'short'
         });
 
-        const charData = { ...PERSONALITIES[skin] } || { ...PERSONALITIES.alfred };
+        const charData = PERSONALITIES[skin] ? { ...PERSONALITIES[skin] } : { ...PERSONALITIES.alfred };
 
         // --- IDENTITY ANCHORING ---
         if (skin === 'agent_smith' || skin === 'blind_date') {
