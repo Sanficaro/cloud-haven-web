@@ -100,9 +100,9 @@ export default function HavenPage() {
 
       if (isMobile) {
         // Refined logic for Mobile: Stricter thresholds to prevent accidental triggers
-        const HORIZONTAL_THRESHOLD = 150;  // Increased from 90px
-        const VERTICAL_MAX = 50;           // New: Reject if too much vertical movement
-        const RATIO = 4;                   // Increased from 2.5x
+        const HORIZONTAL_THRESHOLD = 200;  // Increased from 150px
+        const VERTICAL_MAX = 30;           // Reduced from 50px - stricter vertical rejection
+        const RATIO = 4;                   // Horizontal must be 4x greater than vertical
 
         // Reject if too much vertical movement (prevents scroll interference)
         if (Math.abs(deltaY) > VERTICAL_MAX) return;
