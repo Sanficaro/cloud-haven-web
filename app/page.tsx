@@ -90,33 +90,46 @@ export default function HavenPage() {
 
     let touchStartX = 0;
     let touchStartY = 0;
+    let isScrollGesture = false;  // NEW: Track if this gesture is a scroll
+
     const handleTouchStart = (e: TouchEvent) => {
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
+      isScrollGesture = false;  // Reset on new touch
+    };
+
+    // NEW: Track gesture intent DURING movement
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isMobile || isScrollGesture) return;  // Already determined or not mobile
+
+      const currentX = e.touches[0].clientX;
+      const currentY = e.touches[0].clientY;
+      const deltaX = Math.abs(currentX - touchStartX);
+      const deltaY = Math.abs(currentY - touchStartY);
+
+      // If any vertical movement detected early, lock as scroll
+      if (deltaY > 10) {  // 10px threshold for early detection
+        isScrollGesture = true;  // Lock this gesture as a scroll
+      }
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
+      // If this was detected as a scroll gesture, completely ignore
+      if (isScrollGesture) return;
+
       const touchEndX = e.changedTouches[0].clientX;
       const touchEndY = e.changedTouches[0].clientY;
       const deltaX = touchEndX - touchStartX;
       const deltaY = touchEndY - touchStartY;
 
       if (isMobile) {
-        // Refined logic for Mobile: Stricter thresholds to prevent accidental triggers
-        const HORIZONTAL_THRESHOLD = 200;  // Increased from 150px
-        const VERTICAL_MAX = 30;           // Reduced from 50px - stricter vertical rejection
-        const RATIO = 4;                   // Horizontal must be 4x greater than vertical
-
-        // NEW: If vertical movement dominates, this is a scroll - reject immediately
+        // Only pure horizontal swipes can trigger skin change
+        const HORIZONTAL_THRESHOLD = 150;  // Deliberate swipe required
         const absX = Math.abs(deltaX);
         const absY = Math.abs(deltaY);
-        if (absY > absX) return;  // Vertical is primary - this is a scroll, not a swipe
 
-        // Reject if too much vertical movement (prevents scroll interference)
-        if (absY > VERTICAL_MAX) return;
-
-        // Require strong horizontal dominance
-        if (absX > HORIZONTAL_THRESHOLD && absX > absY * RATIO) {
+        // Must be strongly horizontal with minimal vertical
+        if (absX > HORIZONTAL_THRESHOLD && absY < 20) {
           triggerSwitch(deltaX < 0 ? 'next' : 'prev');
         }
       } else {
@@ -167,6 +180,7 @@ export default function HavenPage() {
     document.addEventListener('mouseup', handleMouseUp);
     document.addEventListener('wheel', handleWheel);
     document.addEventListener('touchstart', handleTouchStart);
+    document.addEventListener('touchmove', handleTouchMove);  // NEW: Track gesture intent
     document.addEventListener('touchend', handleTouchEnd);
 
     return () => {
@@ -174,6 +188,7 @@ export default function HavenPage() {
       document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('wheel', handleWheel);
       document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchmove', handleTouchMove);  // NEW: Cleanup
       document.removeEventListener('touchend', handleTouchEnd);
     };
   }, [isDragging, dragOffset]);
