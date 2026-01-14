@@ -99,8 +99,16 @@ export default function HavenPage() {
       const deltaY = touchEndY - touchStartY;
 
       if (isMobile) {
-        // Refined logic for Mobile: 90px threshold + Vector Isolation (2.5x ratio)
-        if (Math.abs(deltaX) > 90 && Math.abs(deltaX) > Math.abs(deltaY) * 2.5) {
+        // Refined logic for Mobile: Stricter thresholds to prevent accidental triggers
+        const HORIZONTAL_THRESHOLD = 150;  // Increased from 90px
+        const VERTICAL_MAX = 50;           // New: Reject if too much vertical movement
+        const RATIO = 4;                   // Increased from 2.5x
+
+        // Reject if too much vertical movement (prevents scroll interference)
+        if (Math.abs(deltaY) > VERTICAL_MAX) return;
+
+        // Require strong horizontal dominance
+        if (Math.abs(deltaX) > HORIZONTAL_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY) * RATIO) {
           triggerSwitch(deltaX < 0 ? 'next' : 'prev');
         }
       } else {
