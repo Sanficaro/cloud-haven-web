@@ -77,8 +77,11 @@ export default function HavenPage() {
 
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
+      // Disable wheel-based skin switching on mobile to prevent scroll interference
+      if (isMobile) return;
+
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-        const threshold = isMobile ? 100 : 30;
+        const threshold = 30;  // Desktop only now
         if (Math.abs(e.deltaX) > threshold) {
           triggerSwitch(e.deltaX > 0 ? 'next' : 'prev');
         }
