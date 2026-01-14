@@ -2,6 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes swipe-hand {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-20px);
+  }
+
+  75% {
+    transform: translateX(20px);
+  }
+}
+
+@keyframes fade-out {
+  0% {
+    opacity: 1;
+  }
+
+  80% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-swipe {
+  animation: swipe-hand 1.5s ease-in-out infinite;
+}
+
+.animate-fade-out {
+  animation: fade-out 4s forwards;
+}
+
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400&display=swap');
 
 /* === SKIN DEFINITIONS === */

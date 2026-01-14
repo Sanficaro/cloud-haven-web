@@ -263,6 +263,45 @@ ${charData.defaultAnswers}`;
             }
         }
 
+        // --- LEVEL 0: CLAWCLOUD (UNLIMITED FREE BRAIN) ---
+        // [PAUSED] - Integration deferred by user request on 2026-01-14.
+        // Priority 1 for Smith/Scarlet (Free, Uncensored, Hosted)
+        /*
+        const clawUrl = "https://ktbifxflaoqk.eu-central-1.clawcloudrun.com/v1/chat/completions";
+        // Only try this if we are not Alfred (Alfred prefers Google) OR if we want to save Google quota
+        // For now, let's let Smith and Scarlet use this primarily.
+        if (skin !== 'alfred') {
+            try {
+                const response = await fetch(clawUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                        // No Authorization needed for our open instance
+                    },
+                    body: JSON.stringify({
+                        model: "deepseek-r1", // Name doesn't matter for single-model loader
+                        messages: [{ role: "system", content: systemPrompt }, ...cleanMessages],
+                        temperature: 0.7,
+                        max_tokens: 2000, // Generous limit for the free brain
+                        stop: ["User:", "\nUser:", "assistant:", "Assistant:", "<|im_start|>", "<|im_end|>"]
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const content = data.choices?.[0]?.message?.content || "No data received.";
+                    return NextResponse.json({ role: 'assistant', text: content });
+                } else {
+                    console.log(`ClawCloud Link Status [${response.status}]: Connection valid but returned error.`);
+                    // If it fails (e.g. 503 loading), we just fall through to OpenRouter
+                }
+            } catch (e: any) {
+                console.log("ClawCloud Link Offline/Loading:", e.message);
+                // Fall through to next provider
+            }
+        }
+        */
+
         // --- GLASS BREAK FAILOVER ARRAY (LEVEL 1: OPENROUTER) ---
         const apiKey = process.env.OPENROUTER_API_KEY;
         if (apiKey) {
@@ -292,11 +331,16 @@ ${charData.defaultAnswers}`;
                     return NextResponse.json({ role: 'assistant', text: content });
                 }
 
-                if (Number(response.status) !== 429) {
+                // IMPROVED FAILOVER LOGIC:
+                // Fall through on 429 (Rate Limit), 402 (Payment), 404 (Model Gone), 503 (Overload), or 500 (Server Error)
+                const status = Number(response.status);
+                if (status !== 429 && status !== 402 && status !== 404 && status !== 503 && status !== 500) {
+                    // Actual config/auth error - report it
                     const errorText = await response.text();
-                    return NextResponse.json({ text: `**Neural Link Error**: (${response.status} - ${errorText.substring(0, 150)}...)` });
+                    return NextResponse.json({ text: `**Neural Link Error**: (${status} - ${errorText.substring(0, 150)}...)` });
                 }
-                // If 429, fall through to Level 2
+                console.log(`OpenRouter Status [${status}]: Triggering Failover...`);
+                // Fall through to Level 2
             } catch (e: any) {
                 console.error("OpenRouter Failover Triggered:", e.message);
             }
@@ -305,6 +349,7 @@ ${charData.defaultAnswers}`;
         const veniceKey = process.env.VENICE_API_KEY;
         const hfToken = process.env.HF_TOKEN;
         const keysStatus = `[Keys: OR:${!!apiKey}, Venice:${!!veniceKey}, HF:${!!hfToken}]`;
+        let veniceError = "";
         if (veniceKey) {
             try {
                 const response = await fetch("https://api.venice.ai/api/v1/chat/completions", {
@@ -314,7 +359,7 @@ ${charData.defaultAnswers}`;
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        model: "qwen3-4b",
+                        model: "mistral-7b", // Switched to a more stable default model for testing
                         messages: [{ role: "system", content: systemPrompt }, ...cleanMessages],
                         temperature: skin === 'alfred' ? 0.3 : 0.7,
                         max_tokens: 1000,
@@ -328,14 +373,17 @@ ${charData.defaultAnswers}`;
                     return NextResponse.json({ role: 'assistant', text: content });
                 } else {
                     const errorBody = await response.text();
-                    console.error(`Venice Link Failure [${response.status}]:`, errorBody);
+                    veniceError = `[Venice: ${response.status} - ${errorBody.substring(0, 50)}]`;
+                    console.error(`Venice Link Failure:`, errorBody);
                 }
             } catch (e: any) {
+                veniceError = `[Venice Ex: ${e.message}]`;
                 console.error("Venice Failover Triggered Error:", e.message);
             }
         }
 
         // --- GLASS BREAK FAILOVER ARRAY (LEVEL 3: HUGGING FACE) ---
+        let hfError = "";
         if (hfToken) {
             try {
                 const response = await fetch("https://router.huggingface.co/v1/chat/completions", {
@@ -359,15 +407,16 @@ ${charData.defaultAnswers}`;
                     return NextResponse.json({ role: 'assistant', text: content });
                 } else {
                     const errorBody = await response.text();
-                    console.error(`HF Link Failure [${response.status}]:`, errorBody);
+                    hfError = `[HF: ${response.status} - ${errorBody.substring(0, 50)}]`;
+                    console.error(`HF Link Failure:`, errorBody);
                 }
             } catch (e: any) {
+                hfError = `[HF Ex: ${e.message}]`;
                 console.error("HF Failover Critical Failure:", e.message);
             }
         }
 
-        return NextResponse.json({ text: `⚠️ **SYSTEM ALERT**: All Neural Links exhausted. 429 Quota reached on all fallbacks. ${keysStatus}` });
-
+        return NextResponse.json({ text: `⚠️ **SYSTEM ALERT**: All Neural Links exhausted. \n${keysStatus}\nErrors: ${veniceError} ${hfError}` });
     } catch (error: any) {
         return NextResponse.json({ text: `**Critical fault**: ${error.message}` }, { status: 500 });
     }
