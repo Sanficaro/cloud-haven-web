@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useState } from 'react';
-import { Send, Menu, Plus, Upload, Image as ImageIcon, Sparkles, Terminal, User, MessageSquarePlus, FolderOpen, Settings, Shirt, Wine, Wand2 } from 'lucide-react';
+import { Send, Menu, Plus, Upload, Image as ImageIcon, Sparkles, Terminal, User, MessageSquarePlus, FolderOpen, Settings, Shirt, Wine, Wand2, Hand } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import '../globals.css';
 
@@ -33,16 +33,31 @@ export default function HavenPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
-  // Avatar swipe state for mobile
+  // Avatar swipe state (Mobile & Desktop)
   const avatarTouchStartX = useRef(0);
+  const isAvatarSwipeActive = useRef(false);
+  const [showSwipeHint, setShowSwipeHint] = useState(false);
 
   const skins: Skin[] = ['alfred', 'agent_smith', 'blind_date'];
+
+  // ... (lines 43-85 unchanged)
+
+
 
   // Detect mobile on mount
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
+
+    // Check for swipe hint (Mobile & Desktop)
+    const hasSeenHint = sessionStorage.getItem('hasSeenSwipeHint');
+    if (!hasSeenHint) {
+      setShowSwipeHint(true);
+      sessionStorage.setItem('hasSeenSwipeHint', 'true');
+      setTimeout(() => setShowSwipeHint(false), 4000); // Fade out after 4s
+    }
+
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
@@ -74,14 +89,19 @@ export default function HavenPage() {
     setCurrentSkin(skin);
   };
 
-  // --- AVATAR SWIPE HANDLERS (Mobile Only) ---
-  const handleAvatarTouchStart = (e: React.TouchEvent) => {
-    avatarTouchStartX.current = e.touches[0].clientX;
+  // --- AVATAR SWIPE HANDLERS (Mobile & Desktop) ---
+  const handleAvatarTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
+    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    avatarTouchStartX.current = clientX;
+    isAvatarSwipeActive.current = true;
   };
 
-  const handleAvatarTouchEnd = (e: React.TouchEvent) => {
-    const touchEndX = e.changedTouches[0].clientX;
-    const deltaX = touchEndX - avatarTouchStartX.current;
+  const handleAvatarTouchEnd = (e: React.TouchEvent | React.MouseEvent) => {
+    if (!isAvatarSwipeActive.current) return;
+    isAvatarSwipeActive.current = false;
+
+    const clientX = 'changedTouches' in e ? e.changedTouches[0].clientX : (e as React.MouseEvent).clientX;
+    const deltaX = clientX - avatarTouchStartX.current;
 
     // Require 50px swipe on the icon to change skin
     if (Math.abs(deltaX) > 50) {
@@ -98,6 +118,13 @@ export default function HavenPage() {
       });
     }
   };
+
+  // Safe reset if dragging out
+  const handleAvatarMouseLeave = () => {
+    isAvatarSwipeActive.current = false;
+  };
+
+
 
   // --- GESTURES ---
   const lastSwitchTime = useRef(0);
@@ -355,8 +382,10 @@ export default function HavenPage() {
 
           <div
             className="avatar-stage"
-            onTouchStart={isMobile ? handleAvatarTouchStart : undefined}
-            onTouchEnd={isMobile ? handleAvatarTouchEnd : undefined}
+            onTouchStart={handleAvatarTouchStart}
+            onTouchEnd={handleAvatarTouchEnd}
+            onMouseDown={handleAvatarTouchStart}
+            onMouseUp={handleAvatarTouchEnd}
           >
             <div className={`avatar-view w-16 h-16 rounded-full shadow-xl ${currentSkin === 'alfred' ? 'active' : ''}`}>
               <img src="/media/icons/alfred_icon.jpg" alt="Alfred" className="rounded-avatar alfred-border" />
@@ -370,6 +399,16 @@ export default function HavenPage() {
               <img src="/media/icons/blind_date_icon.png" alt="Blind Date" className="rounded-avatar mstramell-border" />
             </div>
           </div>
+
+          {/* Swipe Hint Animation */}
+          {showSwipeHint && (
+            <div className="absolute top-[80px] left-1/2 -translate-x-1/2 z-20 pointer-events-none animate-fade-out">
+              <div className="bg-black/50 backdrop-blur-md text-white/80 px-3 py-1.5 rounded-full flex items-center gap-2 text-xs border border-white/10 shadow-lg">
+                <Hand className="w-4 h-4 animate-swipe" />
+                <span>Swipe icon to switch</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* CHAT AREA */}
