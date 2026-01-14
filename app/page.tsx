@@ -33,6 +33,9 @@ export default function HavenPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
+  // Avatar swipe state for mobile
+  const avatarTouchStartX = useRef(0);
+
   const skins: Skin[] = ['alfred', 'agent_smith', 'blind_date'];
 
   // Detect mobile on mount
@@ -69,6 +72,31 @@ export default function HavenPage() {
 
   const changeSkin = (skin: Skin) => {
     setCurrentSkin(skin);
+  };
+
+  // --- AVATAR SWIPE HANDLERS (Mobile Only) ---
+  const handleAvatarTouchStart = (e: React.TouchEvent) => {
+    avatarTouchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleAvatarTouchEnd = (e: React.TouchEvent) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const deltaX = touchEndX - avatarTouchStartX.current;
+
+    // Require 50px swipe on the icon to change skin
+    if (Math.abs(deltaX) > 50) {
+      const now = Date.now();
+      if (now - lastSwitchTime.current < 800) return;  // Cooldown
+      lastSwitchTime.current = now;
+
+      setCurrentSkin(prevSkin => {
+        const currentIndex = skins.indexOf(prevSkin);
+        let newIndex = deltaX < 0 ? currentIndex + 1 : currentIndex - 1;
+        if (newIndex >= skins.length) newIndex = 0;
+        if (newIndex < 0) newIndex = skins.length - 1;
+        return skins[newIndex];
+      });
+    }
   };
 
   // --- GESTURES ---
@@ -114,29 +142,15 @@ export default function HavenPage() {
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
-      // If this was detected as a scroll gesture, completely ignore
-      if (isScrollGesture) return;
+      // MOBILE: Disable ALL global touch-based skin switching
+      // Skin switching on mobile is now handled by the avatar-stage element only
+      if (isMobile) return;
 
+      // Desktop/Tablet touch - legacy behavior
       const touchEndX = e.changedTouches[0].clientX;
-      const touchEndY = e.changedTouches[0].clientY;
       const deltaX = touchEndX - touchStartX;
-      const deltaY = touchEndY - touchStartY;
-
-      if (isMobile) {
-        // Only pure horizontal swipes can trigger skin change
-        const HORIZONTAL_THRESHOLD = 150;  // Deliberate swipe required
-        const absX = Math.abs(deltaX);
-        const absY = Math.abs(deltaY);
-
-        // Must be strongly horizontal with minimal vertical
-        if (absX > HORIZONTAL_THRESHOLD && absY < 20) {
-          triggerSwitch(deltaX < 0 ? 'next' : 'prev');
-        }
-      } else {
-        // Legacy sensitivity for Tablets/Desktop Touch
-        if (Math.abs(deltaX) > 25) {
-          triggerSwitch(deltaX < 0 ? 'next' : 'prev');
-        }
+      if (Math.abs(deltaX) > 25) {
+        triggerSwitch(deltaX < 0 ? 'next' : 'prev');
       }
     };
 
@@ -339,7 +353,11 @@ export default function HavenPage() {
             ))}
           </div>
 
-          <div className="avatar-stage">
+          <div
+            className="avatar-stage"
+            onTouchStart={isMobile ? handleAvatarTouchStart : undefined}
+            onTouchEnd={isMobile ? handleAvatarTouchEnd : undefined}
+          >
             <div className={`avatar-view w-16 h-16 rounded-full shadow-xl ${currentSkin === 'alfred' ? 'active' : ''}`}>
               <img src="/media/icons/alfred_icon.jpg" alt="Alfred" className="rounded-avatar alfred-border" />
             </div>
