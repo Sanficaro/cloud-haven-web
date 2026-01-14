@@ -205,7 +205,7 @@ export default function HavenPage() {
       document.removeEventListener('touchmove', handleTouchMove);  // NEW: Cleanup
       document.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [isDragging, dragOffset]);
+  }, [isDragging, dragOffset, isMobile]);
 
   const handleInsertActionMarker = () => {
     if (!inputRef.current) return;
