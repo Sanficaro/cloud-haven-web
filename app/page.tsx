@@ -104,11 +104,16 @@ export default function HavenPage() {
         const VERTICAL_MAX = 30;           // Reduced from 50px - stricter vertical rejection
         const RATIO = 4;                   // Horizontal must be 4x greater than vertical
 
+        // NEW: If vertical movement dominates, this is a scroll - reject immediately
+        const absX = Math.abs(deltaX);
+        const absY = Math.abs(deltaY);
+        if (absY > absX) return;  // Vertical is primary - this is a scroll, not a swipe
+
         // Reject if too much vertical movement (prevents scroll interference)
-        if (Math.abs(deltaY) > VERTICAL_MAX) return;
+        if (absY > VERTICAL_MAX) return;
 
         // Require strong horizontal dominance
-        if (Math.abs(deltaX) > HORIZONTAL_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY) * RATIO) {
+        if (absX > HORIZONTAL_THRESHOLD && absX > absY * RATIO) {
           triggerSwitch(deltaX < 0 ? 'next' : 'prev');
         }
       } else {
