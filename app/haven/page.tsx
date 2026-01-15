@@ -12,6 +12,58 @@ type Message = { role: 'user' | 'system'; content: string };
 export default function HavenPage() {
   const [currentSkin, setCurrentSkin] = useState<Skin>('alfred');
   const [inputMessage, setInputMessage] = useState('');
+
+  // --- IMAGE GENERATION LOGIC ---
+  const imageRegex = /\[IMAGE:\s*(.*?)\]/g;
+
+  function ImageMessage({ prompt, skin }: { prompt: string, skin: string }) {
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
+
+    useEffect(() => {
+      async function generate() {
+        try {
+          const res = await fetch('/api/image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt, skin })
+          });
+          if (!res.ok) throw new Error('Generation failed');
+          const blob = await res.blob();
+          setImageUrl(URL.createObjectURL(blob));
+        } catch (err) {
+          setError(true);
+        } finally {
+          setLoading(false);
+        }
+      }
+      generate();
+    }, [prompt, skin]);
+
+    if (loading) return (
+      <div className="flex flex-col items-center gap-2 p-4 bg-black/20 rounded-xl border border-white/5 animate-pulse">
+        <ImageIcon className="w-8 h-8 text-[var(--accent-color)] opacity-50" />
+        <span className="text-xs text-[var(--text-color)]/50 tracking-widest uppercase">Initializing Neural Render...</span>
+      </div>
+    );
+
+    if (error) return (
+      <div className="p-4 bg-red-900/10 rounded-xl border border-red-500/20 text-red-500 text-xs text-center">
+        Neural render failed. Model overloaded or restricted.
+      </div>
+    );
+
+    return (
+      <div className="relative group rounded-xl overflow-hidden border border-white/10 shadow-2xl">
+        <img src={imageUrl!} alt={prompt} className="w-full h-auto object-cover max-h-[500px]" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-4 flex flex-col justify-end">
+          <p className="text-[10px] text-white/50 uppercase tracking-widest mb-1 italic">Generated for {skin}</p>
+          <p className="text-xs text-white line-clamp-2">{prompt}</p>
+        </div>
+      </div>
+    );
+  }
   const [chatHistory, setChatHistory] = useState<Record<Skin, Message[]>>({
     alfred: [],
     agent_smith: [],
@@ -276,26 +328,7 @@ export default function HavenPage() {
       [currentSkin]: updatedHistory
     }));
 
-    // --- IMAGE GENERATION INTERCEPT ---
-    const lowerText = text.toLowerCase();
-    const isImageCommand = lowerText.startsWith('draw') || lowerText.startsWith('image') || lowerText.startsWith('generate') || lowerText.startsWith('imagine');
-
-    if (isImageCommand && (currentSkin === 'agent_smith' || currentSkin === 'blind_date')) {
-      let prompt = text.replace(/^(draw|image|generate|imagine)\s*/i, '').trim();
-      if (!prompt) prompt = "something amazing";
-      const imageUrl = `/api/image-proxy?prompt=${encodeURIComponent(prompt)}`;
-
-      setTimeout(() => {
-        setChatHistory(prev => ({
-          ...prev,
-          [currentSkin]: [...prev[currentSkin],
-          { role: 'system', content: `Generative Matrix Accessed: "${prompt}"` },
-          { role: 'system', content: `![Generated Image](${imageUrl})` }
-          ]
-        }));
-      }, 500);
-      return;
-    }
+    // AI will handle image generation via the [IMAGE: ...] protocol
 
     try {
       const response = await fetch('/api/chat', {
@@ -421,8 +454,12 @@ export default function HavenPage() {
             <div className="w-full max-w-2xl px-4 flex flex-col gap-4">
               {chatHistory.alfred.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
-                  <div className={`px-6 py-3 max-w-[85%] text-lg whitespace-pre-wrap break-words overflow-wrap-anywhere`}>
-                    <ReactMarkdown components={{ img: ({ node, ...props }) => <img {...props} className="chat-image" /> }}>{msg.content}</ReactMarkdown>
+                  <div className={`px-6 py-3 max-w-[85%] text-lg whitespace-pre-wrap break-words overflow-wrap-anywhere flex flex-col gap-4`}>
+                    {msg.content.split(imageRegex).map((part, i) => {
+                      if (i % 2 === 1) return <ImageMessage key={i} prompt={part} skin={currentSkin} />;
+                      if (!part.trim()) return null;
+                      return <ReactMarkdown key={i} components={{ img: ({ node, ...props }) => <img {...props} className="chat-image" /> }}>{part}</ReactMarkdown>;
+                    })}
                   </div>
                 </div>
               ))}
@@ -444,8 +481,12 @@ export default function HavenPage() {
             <div className="w-full max-w-4xl space-y-6 px-4 z-10">
               {chatHistory.agent_smith.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`${msg.role === 'user' ? 'bg-green-900/20 border border-green-500/30' : 'bg-black/40 border border-green-500/20 shadow-[0_0_20px_rgba(34,197,94,0.1)]'} px-6 py-3 rounded-2xl inline-block text-lg neo-text max-w-[80%]`}>
-                    <ReactMarkdown components={{ img: ({ node, ...props }) => <img {...props} className="chat-image" /> }}>{msg.content}</ReactMarkdown>
+                  <div className={`${msg.role === 'user' ? 'bg-green-900/20 border border-green-500/30' : 'bg-black/40 border border-green-500/20 shadow-[0_0_20px_rgba(34,197,94,0.1)]'} px-6 py-3 rounded-2xl flex flex-col gap-4 text-lg neo-text max-w-[80%]`}>
+                    {msg.content.split(imageRegex).map((part, i) => {
+                      if (i % 2 === 1) return <ImageMessage key={i} prompt={part} skin={currentSkin} />;
+                      if (!part.trim()) return null;
+                      return <ReactMarkdown key={i} components={{ img: ({ node, ...props }) => <img {...props} className="chat-image" /> }}>{part}</ReactMarkdown>;
+                    })}
                   </div>
                 </div>
               ))}
@@ -458,8 +499,12 @@ export default function HavenPage() {
             <div className="w-full max-w-3xl space-y-8 px-4">
               {chatHistory.blind_date.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`${msg.role === 'user' ? 'bg-[#c5b358]/10 text-[#dcd0b3] border border-[#c5b358]/20' : 'bg-black/30 text-[#dcd0b3] italic font-serif shadow-[0_0_30px_rgba(197,179,88,0.05)] border border-[#c5b358]/10'} px-8 py-4 rounded-[2rem] inline-block text-xl backdrop-blur-sm max-w-[85%]`}>
-                    <ReactMarkdown components={{ img: ({ node, ...props }) => <img {...props} className="chat-image" /> }}>{msg.content}</ReactMarkdown>
+                  <div className={`blind-date-bubble flex flex-col gap-4 ${msg.role === 'user' ? 'ml-auto text-right' : 'mr-auto text-center'} max-w-[98%] text-xl p-4 sm:p-6 rounded-3xl`}>
+                    {msg.content.split(imageRegex).map((part, i) => {
+                      if (i % 2 === 1) return <ImageMessage key={i} prompt={part} skin={currentSkin} />;
+                      if (!part.trim()) return null;
+                      return <ReactMarkdown key={i} components={{ img: ({ node, ...props }) => <img {...props} className="chat-image" /> }}>{part}</ReactMarkdown>;
+                    })}
                   </div>
                 </div>
               ))}
